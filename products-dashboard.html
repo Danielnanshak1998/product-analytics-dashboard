@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Product Analytics Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --card: #161a22;
+    --border: #1f2530;
+    --accent: #00e5a0;
+    --accent2: #ff6b6b;
+    --accent3: #ffc94a;
+    --accent4: #6eb5ff;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+    --font-head: 'Syne', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrapper { position: relative; z-index: 1; max-width: 1300px; margin: 0 auto; }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left h1 {
+    font-family: var(--font-head);
+    font-size: 2.4rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1;
+    color: var(--text);
+  }
+  .header-left h1 span { color: var(--accent); }
+  .header-left p {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 0.7rem;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+  .header-right .tag {
+    display: inline-block;
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+  }
+
+  /* KPI Strip */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .kpi {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.6s ease both;
+  }
+  .kpi::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .kpi:nth-child(1)::before { background: var(--accent); }
+  .kpi:nth-child(2)::before { background: var(--accent3); }
+  .kpi:nth-child(3)::before { background: var(--accent2); }
+  .kpi:nth-child(4)::before { background: var(--accent4); }
+
+  .kpi .label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
+  .kpi .value {
+    font-family: var(--font-head);
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .kpi:nth-child(1) .value { color: var(--accent); }
+  .kpi:nth-child(2) .value { color: var(--accent3); }
+  .kpi:nth-child(3) .value { color: var(--accent2); }
+  .kpi:nth-child(4) .value { color: var(--accent4); }
+  .kpi .sub {
+    font-size: 0.65rem;
+    color: var(--muted);
+    margin-top: 0.4rem;
+  }
+
+  /* Grid layout for charts */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .span-2 { grid-column: span 2; }
+
+  /* Cards */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem;
+    animation: fadeUp 0.7s ease both;
+  }
+  .card-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    margin-bottom: 1.2rem;
+  }
+  .card-title {
+    font-family: var(--font-head);
+    font-size: 0.9rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .card-q {
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    font-weight: 500;
+  }
+  .chart-wrap { position: relative; }
+
+  /* Q&A section */
+  .qa-section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.6rem;
+    margin-bottom: 1rem;
+    animation: fadeUp 0.8s ease both;
+  }
+  .qa-section h2 {
+    font-family: var(--font-head);
+    font-size: 1rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .qa-section h2::before {
+    content: '//';
+    opacity: 0.4;
+  }
+  .qa-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .qa-item {
+    background: var(--surface);
+    border-left: 2px solid var(--accent);
+    border-radius: 4px;
+    padding: 1rem 1.2rem;
+  }
+  .qa-item.q2 { border-color: var(--accent3); }
+  .qa-item.q3 { border-color: var(--accent2); }
+  .qa-item.q4 { border-color: var(--accent4); }
+  .qa-item.q5 { border-color: #b06bff; }
+  .qa-item .q {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+    letter-spacing: 0.05em;
+  }
+  .qa-item .a {
+    font-size: 0.8rem;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  .qa-item .a strong { color: var(--accent); }
+  .qa-item.q2 .a strong { color: var(--accent3); }
+  .qa-item.q3 .a strong { color: var(--accent2); }
+  .qa-item.q4 .a strong { color: var(--accent4); }
+  .qa-item.q5 .a strong { color: #b06bff; }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+  thead tr { border-bottom: 1px solid var(--border); }
+  th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    color: var(--muted);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+  }
+  td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+  }
+  .badge-green { background: rgba(0,229,160,0.15); color: var(--accent); }
+  .badge-yellow { background: rgba(255,201,74,0.15); color: var(--accent3); }
+  .badge-blue { background: rgba(110,181,255,0.15); color: var(--accent4); }
+  .badge-red { background: rgba(255,107,107,0.15); color: var(--accent2); }
+
+  /* Footer */
+  footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.65rem;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (max-width: 900px) {
+    .kpi-row { grid-template-columns: 1fr 1fr; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .qa-grid { grid-template-columns: 1fr; }
+    .span-2 { grid-column: span 1; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="header-left">
+      <h1>Product <span>Analytics</span></h1>
+      <p>Sample Dataset · 100 Products · 32 Categories</p>
+    </div>
+    <div class="header-right">
+      <span class="tag">Portfolio Project</span><br/>
+      Analysis by Nashemmy<br/>
+      May 2026
+    </div>
+  </header>
+
+  <!-- KPI Strip -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="label">Total Products</div>
+      <div class="value">100</div>
+      <div class="sub">Across 32 categories</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Average Price</div>
+      <div class="value">$451</div>
+      <div class="sub">Range: $1 – $999</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Average Stock</div>
+      <div class="value">546</div>
+      <div class="sub">Units per product</div>
+    </div>
+    <div class="kpi">
+      <div class="label">In-Stock Rate</div>
+      <div class="value">20%</div>
+      <div class="sub">20 of 100 available now</div>
+    </div>
+  </div>
+
+  <!-- Row 1: Category bar + Availability donut -->
+  <div class="grid-2" style="margin-bottom:1rem;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Products by Category</div>
+        <div class="card-q">Q1</div>
+      </div>
+      <div class="chart-wrap" style="height:320px;">
+        <canvas id="catChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Availability Breakdown</div>
+        <div class="card-q">Q3</div>
+      </div>
+      <div class="chart-wrap" style="height:320px;">
+        <canvas id="availChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 2: Price by category (horizontal) + Avg stock by availability -->
+  <div class="grid-2" style="margin-bottom:1rem;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Top 10 — Avg Price by Category</div>
+        <div class="card-q">Q2</div>
+      </div>
+      <div class="chart-wrap" style="height:300px;">
+        <canvas id="priceChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Avg Stock per Availability Status</div>
+        <div class="card-q">Q5</div>
+      </div>
+      <div class="chart-wrap" style="height:300px;">
+        <canvas id="stockAvailChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 3: Top 5 stocked table -->
+  <div class="card" style="margin-bottom:1rem;">
+    <div class="card-header">
+      <div class="card-title">Top 5 Highest-Stocked Products</div>
+      <div class="card-q">Q4</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Product Name</th>
+            <th>Category</th>
+            <th>Stock Units</th>
+            <th>Price (USD)</th>
+            <th>Stock Bar</th>
+          </tr>
+        </thead>
+        <tbody id="topStockTable"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Q&A Section -->
+  <div class="qa-section">
+    <h2>5 Key Analysis Questions & Answers</h2>
+    <div class="qa-grid">
+      <div class="qa-item">
+        <div class="q">Q1 — What is the product distribution across categories?</div>
+        <div class="a">
+          The top categories are <strong>Automotive, Health & Wellness</strong>, and <strong>Cleaning Supplies</strong>, each with 6 products. The catalog spans 32 distinct categories, with most having 2–3 products, indicating a wide but shallow inventory.
+        </div>
+      </div>
+      <div class="qa-item q2">
+        <div class="q">Q2 — Which categories command the highest average prices?</div>
+        <div class="a">
+          <strong>Clothing & Apparel ($858)</strong> tops the list, followed by Cycling ($799) and Home Decor ($782.50). Surprisingly, Smartwatches average only $32, showing large price disparity across tech categories.
+        </div>
+      </div>
+      <div class="qa-item q3">
+        <div class="q">Q3 — What is the current stock availability status?</div>
+        <div class="a">
+          Only <strong>20% of products are immediately available</strong> (in_stock). The majority are on pre-order (25%) or backorder (16%), while 10 products are out of stock and 12 have been discontinued — a concerning supply chain signal.
+        </div>
+      </div>
+      <div class="qa-item q4">
+        <div class="q">Q4 — Which products have the highest inventory levels?</div>
+        <div class="a">
+          The <strong>Eco Heater Toaster Stove</strong> (Cleaning Supplies) leads with 998 units, followed by the Keyboard Toaster Monitor (988 units). Notably, the top 5 stocked products span very different categories.
+        </div>
+      </div>
+      <div class="qa-item q5">
+        <div class="q">Q5 — Is there a relationship between stock levels and availability status?</div>
+        <div class="a">
+          Interestingly, <strong>discontinued products hold the highest average stock (625 units)</strong> — suggesting items were removed from sale despite supply. In-stock items average 570 units; pre-order items have the lowest average at 519 units.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>Products Dataset · 100 rows · 13 columns</span>
+    <span>Built for portfolio · Nashemmy · 2026</span>
+  </footer>
+
+</div>
+
+<script>
+  const ACCENT  = '#00e5a0';
+  const ACCENT2 = '#ff6b6b';
+  const ACCENT3 = '#ffc94a';
+  const ACCENT4 = '#6eb5ff';
+  const ACCENT5 = '#b06bff';
+  const MUTED   = '#2a3040';
+  const TEXT    = '#e8eaf0';
+
+  Chart.defaults.color = '#6b7280';
+  Chart.defaults.borderColor = '#1f2530';
+  Chart.defaults.font.family = "'DM Mono', monospace";
+  Chart.defaults.font.size = 11;
+
+  /* ---- Q1: Category bar ---- */
+  const catData = {"Automotive":6,"Health & Wellness":6,"Cleaning Supplies":6,"Kids' Clothing":5,"Women's Clothing":5,"Office Supplies":5,"Books & Stationery":4,"Smartphones":4,"Bedding & Bath":4,"Fragrances":4,"Beauty & Personal Care":4};
+  new Chart(document.getElementById('catChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(catData),
+      datasets: [{
+        data: Object.values(catData),
+        backgroundColor: [ACCENT, ACCENT3, ACCENT4, ACCENT2, ACCENT5, ACCENT, ACCENT3, ACCENT4, ACCENT2, ACCENT5, ACCENT],
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw} products` } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 35, font: { size: 10 } } },
+        y: { grid: { color: '#1f2530' }, ticks: { stepSize: 1 } }
+      }
+    }
+  });
+
+  /* ---- Q3: Availability donut ---- */
+  const availData = {"pre_order":25,"in_stock":20,"limited_stock":17,"backorder":16,"discontinued":12,"out_of_stock":10};
+  new Chart(document.getElementById('availChart'), {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(availData).map(k => k.replace('_',' ')),
+      datasets: [{
+        data: Object.values(availData),
+        backgroundColor: [ACCENT3, ACCENT, '#4ade80', ACCENT4, ACCENT2, '#555'],
+        borderColor: '#161a22',
+        borderWidth: 3,
+        hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '62%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { padding: 14, boxWidth: 10, font: { size: 10 } }
+        },
+        tooltip: { callbacks: { label: c => ` ${c.label}: ${c.raw} products` } }
+      }
+    }
+  });
+
+  /* ---- Q2: Avg price by category (horizontal) ---- */
+  const priceData = {"Clothing & Apparel":858,"Cycling":799.33,"Home Decor":782.5,"Fitness Equipment":703.33,"Grooming Tools":702.5,"Furniture":689,"Haircare":681.67,"Camping & Hiking":612.67,"Team Sports":523.5,"Women's Clothing":518.8};
+  new Chart(document.getElementById('priceChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(priceData),
+      datasets: [{
+        data: Object.values(priceData),
+        backgroundColor: ctx => {
+          const v = ctx.raw;
+          if(v >= 800) return ACCENT2;
+          if(v >= 700) return ACCENT3;
+          return ACCENT4;
+        },
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => ` $${c.raw.toFixed(2)} avg` } }
+      },
+      scales: {
+        x: { grid: { color: '#1f2530' }, ticks: { callback: v => '$'+v } },
+        y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+
+  /* ---- Q5: Avg stock by availability ---- */
+  const stockAvail = {"backorder":535.4,"discontinued":625.5,"in_stock":569.7,"limited_stock":524.4,"out_of_stock":522.5,"pre_order":518.6};
+  new Chart(document.getElementById('stockAvailChart'), {
+    type: 'bar',
+    data: {
+      labels: Object.keys(stockAvail).map(k => k.replace('_',' ')),
+      datasets: [{
+        data: Object.values(stockAvail),
+        backgroundColor: [ACCENT4, ACCENT2, ACCENT, ACCENT3, '#555', ACCENT5],
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` ${c.raw} avg units` } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: '#1f2530' }, min: 490, ticks: { stepSize: 30 } }
+      }
+    }
+  });
+
+  /* ---- Q4: Top 5 Table ---- */
+  const top5 = [
+    {name:"Eco Heater Toaster Stove Silent Sense", cat:"Cleaning Supplies", stock:998, price:232},
+    {name:"Keyboard Toaster Monitor", cat:"Kids' Clothing", stock:988, price:576},
+    {name:"Smart Webcam Projector Lock", cat:"Men's Clothing", stock:973, price:440},
+    {name:"Smart Grill Tablet Fridge Go Smart Smart", cat:"Fitness Equipment", stock:966, price:488},
+    {name:"Automatic Trimmer Sense", cat:"Kitchen Appliances", stock:950, price:405},
+  ];
+  const catBadge = (cat) => {
+    const map = {"Cleaning Supplies":"badge-green","Kids' Clothing":"badge-yellow","Men's Clothing":"badge-blue","Fitness Equipment":"badge-red","Kitchen Appliances":"badge-green"};
+    return `<span class="badge ${map[cat]||'badge-blue'}">${cat}</span>`;
+  };
+  const tbody = document.getElementById('topStockTable');
+  top5.forEach((p,i) => {
+    const pct = (p.stock/998*100).toFixed(0);
+    tbody.innerHTML += `
+      <tr>
+        <td style="color:var(--muted)">${i+1}</td>
+        <td style="color:var(--text);font-weight:500">${p.name}</td>
+        <td>${catBadge(p.cat)}</td>
+        <td style="color:var(--accent);font-weight:700">${p.stock.toLocaleString()}</td>
+        <td style="color:var(--accent3)">$${p.price}</td>
+        <td style="min-width:100px">
+          <div style="background:var(--border);border-radius:2px;height:6px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:2px;transition:width 1s ease"></div>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+</script>
+</body>
+</html>
